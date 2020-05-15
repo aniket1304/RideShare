@@ -8,7 +8,7 @@ Assign elastic IP to orchestrator.
 
 Modify ride.py and user.py - replace IP address of the orchestrator with the freshly assigned IP.
 
-Install docker and docker-compose on each instance.
+Install docker and docker-compose on each instance - https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-18-04 https://docs.docker.com/compose/install/
 
 Upload Ride folder, User Folder and Orchestrator folder to their respective instances.
 
