@@ -2,6 +2,8 @@
 
 1. Create 3 instances (Ubuntu 18.04) for Users, Rides and Orchestrator respectively.
 
+Add security group "Type : Custum TCP  Protocol : TCP   Port range : 80  Souce : Anywhere  0.0.0.0/0"
+
 2. Assign elastic IP to orchestrator.
 
 3. Modify ride.py and user.py - replace IP address of the orchestrator with the freshly assigned IP.
