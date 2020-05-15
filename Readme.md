@@ -2,7 +2,7 @@
 
 Create 3 instances (Ubuntu 18.04) for Users, Rides and Orchestrator respectively.
 
-Add security group "Type : Custom TCP  Protocol : TCP   Port range : 80  Source : Anywhere  0.0.0.0/0"
+Add security group "Type : Custom TCP - Protocol : TCP - Port range : 80 - Source : Anywhere  0.0.0.0/0"
 
 Assign elastic IP to orchestrator.
 
