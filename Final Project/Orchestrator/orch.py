@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+#libraries
 import pika
 import uuid
 import docker
@@ -9,6 +10,8 @@ import logging
 from kazoo.client import KazooClient
 from kazoo.client import KazooState
 import socket
+
+#connecting Zookeeper
 logging.basicConfig()
 
 zk = KazooClient(hosts='zoo:2181')
@@ -24,9 +27,8 @@ def zk_listener(state):
 zk.add_listener(zk_listener)
 zk.start()
 
-# if(zk.exists("/Workers")):
-# 	zk.delete("/Workers", recursive=True)
 
+#creating watch on workers
 @zk.ChildrenWatch("/Workers/",send_event = True)
 def watch_children(children,event):
     print("Children are now: %s" % children)
@@ -36,9 +38,7 @@ def watch_children(children,event):
     elif(event.type is DELETED):
         print("Slave deleted")
 
-# connection = pika.BlockingConnection(
-#             pika.ConnectionParameters(host='rmq'))
-# channel = connection.channel()
+
 class reading_response(object):
 
     def __init__(self):
@@ -48,24 +48,29 @@ class reading_response(object):
         self.channel = self.connection.channel()
         self.channel.basic_qos(prefetch_count = 0)
 
+        #exchange declaration
         self.channel.exchange_declare(exchange='read_exchange1', exchange_type='direct')
         self.channel.exchange_declare(exchange='response_exchange1', exchange_type='direct')
         self.channel.exchange_declare(exchange='write_exchange', exchange_type='direct')
 
+        #queue declaration
         self.channel.queue_declare(queue='responseQ', durable= True)
         self.channel.queue_bind(exchange = 'response_exchange1', queue = 'responseQ', routing_key = 'response')
-        # self.callback_queue = result.method.queue
 
+        #basic consume definition
         self.channel.basic_consume(
             queue='responseQ',
             on_message_callback=self.on_response,
             auto_ack=True)
 
+
+    #defining response function which sets response variable to the response received
     def on_response(self, ch, method, props, body):
         print("#####", body)
         if self.corr_id == props.correlation_id:
             print("@@@@", body)
             self.response = json.loads(body)
+
 
     def call(self, n):
         self.response = None
@@ -85,79 +90,7 @@ class reading_response(object):
         self.connection.close()
         return json.dumps(self.response)
 
-'''
-class RRpcClient(object):
 
-    def __init__(self):
-        # self.channel.queue_declare(queue='readQ',durable=True)
-        result = channel.queue_declare(queue='responseQ', exclusive=True)
-        self.callback_queue = result.method.queue
-
-        channel.basic_consume(
-            queue=self.callback_queue,
-            on_message_callback=self.on_response,
-            auto_ack=True)
-
-    def on_response(self, ch, method, props, body):
-        if self.corr_id == props.correlation_id:
-            self.response = body
-
-    def call(self, n):
-        self.response = None
-        self.corr_id = str(uuid.uuid4())
-        print("before publish")
-        channel.basic_publish(
-            exchange='',
-            routing_key='ReadQ',
-            properties=pika.BasicProperties(
-                reply_to=self.callback_queue,
-                correlation_id=self.corr_id,
-                content_type="text/plain",
-            ),
-            body=str(n))
-        print("data pushed")
-        while self.response is None:
-            connection.process_data_events()
-        # self.connection.close()
-        return (self.response)
-
-
-class WRpcClient(object):
-
-    def __init__(self):
-        # self.channel.queue_declare(queue='writeQ',durable=True)
-
-        result = channel.queue_declare(queue='', exclusive=True)
-        self.callback_queue = result.method.queue
-
-        channel.basic_consume(
-            queue=self.callback_queue,
-            on_message_callback=self.on_response,
-            auto_ack=True)
-
-    def on_response(self, ch, method, props, body):
-        if self.corr_id == props.correlation_id:
-            self.response = body
-
-    def call(self, n):
-        self.response = None
-        self.corr_id = str(uuid.uuid4())
-        print("before publish")
-        channel.basic_publish(
-            exchange='',
-            routing_key='WriteQ',
-            properties=pika.BasicProperties(
-                reply_to=self.callback_queue,
-                correlation_id=self.corr_id,
-                content_type="text/plain",
-            ),
-            body=str(n))
-        while self.response is None:
-            connection.process_data_events()
-        # self.connection.close()
-        return (self.response)
-
-'''
 time_start=time.time()
 counter=0
 counti=0
@@ -200,11 +133,7 @@ def adjust_slaves(count):
         for i in range(slaves, target_slaves):
             print("increasing slaves")
             create_slave()
-    # else:
-        # print("more slaves")
-        # for i in range(target_slaves, slaves):
-            # print("decreasing slaves")
-            # slavekill()
+
 
 def count_track():
     global counter
@@ -231,25 +160,7 @@ app = Flask(__name__)
 
 # channel.queue_declare(queue='task_queue', durable=True)
 
-@app.route("/a",methods=["GET"])
-def don():
-#     connection = pika.BlockingConnection(
-#     pika.ConnectionParameters(host='rmq'))
-# channel = connection.channel()
 
-    # for i in range(15):
-    #     message = "Hello World! " + str(i)
-    #     channel.basic_publish(
-    #         exchange='',
-    #         routing_key='task_queue',
-    #         body=message,
-    #         properties=pika.BasicProperties(
-    #             delivery_mode=2,  # make message persistent
-    #         ))
-
-    #     print(" [x] Sent %r" % message)
-    # # connection.close()
-    return(jsonify())
 
 @app.route("/api/v1/db/write",methods=["POST"])
 def write_db():
@@ -263,12 +174,7 @@ def write_db():
     channel = connection.channel()
     channel.basic_publish(exchange='write_exchange', routing_key = 'write', body= json.dumps(me))
     return {}
-    '''
-	exec(me)	
-	db.session.add(us)
-	db.session.commit()
-    '''
-    # return (jsonify())
+
 
 @app.route("/api/v1/crash/slave",methods=["POST"])
 def slave():
@@ -322,21 +228,7 @@ def pid():
 
 @app.route("/api/v1/db/read",methods=["POST"])
 def read_db():
-# 	{
-# “table”: “table name”,
-# “columns”: [“column name”,],
-# “where”: “[column=='value',"fhgf>=yu"]”
-# }
-    '''try:
-        me =("global us;us="+request.get_json()["table"]+".query.filter"+"("+request.get_json()["where"]+").all()")
-    except:
-        me =("global us;us="+request.get_json()["table"]+".query.all()")
-    print(me)'''
-    # response=read_rpc.call(me)
-    # print("Sent to server")
-    # return (response.decode("utf-8"))
-	# # db.session.add(me)
-	# db.session.commit()
+
     global counter
     counter+=1
     count_track()

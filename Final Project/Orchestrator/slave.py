@@ -1,3 +1,4 @@
+#libraries
 from flask_api import status
 from datetime import datetime
 from flask import Flask, render_template,jsonify,request,abort
@@ -12,9 +13,12 @@ import socket
 from kazoo.client import KazooClient
 from kazoo.client import KazooState
 import logging
+
+#connecting Zookeeper
 logging.basicConfig()
 
 zk = KazooClient(hosts='zoo:2181')
+
 
 def zk_listener(state):
 	if(state == KazooState.LOST):
@@ -24,37 +28,49 @@ def zk_listener(state):
 	else:
 		logging.info("Zookeeper connected")
 
+
+
 zk.add_listener(zk_listener)
 zk.start()
 
+#ensuring nodal path /workers/
 zk.ensure_path("/Workers/")
+
 
 cid = socket.gethostname()
 print(cid)
 path = "/Workers/"+cid
 
+#creating node for this slave
 if zk.exists(path):
     print("Node already exists")
 else:
     zk.create(path, b"slave node")
     print("node created")
 
+
 print(os.environ['HOSTNAME'])
+
+#creating database
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///'+os.environ['HOSTNAME']+'.db'
 db = SQLAlchemy(app)
+
+#creating table
 db.create_all()
-# Ensure FOREIGN KEY for sqlite3
+
+
+
 if 'sqlite' in app.config['SQLALCHEMY_DATABASE_URI']:
-    def _fk_pragma_on_connect(dbapi_con, con_record):  # noqa
+    def _fk_pragma_on_connect(dbapi_con, con_record):
         dbapi_con.execute('pragma foreign_keys=ON')
 
     with app.app_context():
         from sqlalchemy import event
         event.listen(db.engine, 'connect', _fk_pragma_on_connect)
-# app.run(debug=True)
-#dictionary containing book names
-# and quantities
+
+
+#table definitions for User, Ride and ridetake
 
 class User(db.Model):
 	username = db.Column(db.Text(), unique=True, primary_key=True)
@@ -93,63 +109,51 @@ class Ridetake(db.Model):
 		self.rideid= r
 		self.user= u
 
+
+
 import pika
+
+#creating tables
 db.create_all()
+
+#connecting to rabbitmq
 connection = pika.BlockingConnection(
     pika.ConnectionParameters(host='rmq',heartbeat=0))
 
 channel = connection.channel()
 
+#declaring readQ
 channel.queue_declare(queue='readQ',durable=True)
 
+
+
 def on_request(ch, method, props, body):
-    """print("got read reqauest")
-    n = str(body)
-    exec(n)
-	# print(us)
-    lis=[]
-    for i in us:
-        global res
-        res={}
-        for j in request.get_json()["columns"]:
-            exec("res[j]=i."+j)
-        lis+=[res]
-    response=json.dumps(lis)
-    print("slave before publish")
-    ch.basic_publish(exchange='',
-                    routing_key=props.reply_to,
-                    properties=pika.BasicProperties(correlation_id = \
-                                                        props.correlation_id),
-                    body=str(response))
-    ch.basic_ack(delivery_tag=method.delivery_tag)
-"""
+
     dataDict = json.loads(body)
     print(dataDict)
     print(User.query.all())
-            
+    
+
+    #for read requests
     if method.routing_key == 'read':
-        # print("reading")
-        if 1:#try:#
+ 
+        try:
          with app.test_request_context():
             print(User.query.all())
             request = json.loads(body)
             print(request)
-            '''exec(dataDict)
-	# print(us)
-            lis=[]
-            for i in us:
-             global res
-             res={}
-             for j in request.get_json()["columns"]:
-                exec("res[j]=i."+j)
-             lis+=[res]'''
+
+
             try:
+
                 me =("global us;us="+request["table"]+".query.filter"+"("+request["where"]+").all()")
+            
             except:
+            	
                 me =("global us;us="+request["table"]+".query.all()")
-        # print(me)
+
             exec(me)
-        # print(us)
+
             lis=[]
             
             for i in us:
@@ -165,16 +169,16 @@ def on_request(ch, method, props, body):
              lis+=[res]
             print(lis)
             retResponse = (lis)
-        #except Exception as e:
-         #   print(e)
-          #  print(User.query.all())
-           # retResponse=json.dumps(500)
-         ch.basic_publish(exchange='response_exchange1',
+        except Exception as e:
+            print(e)
+            print(User.query.all())
+            retResponse=json.dumps(500)
+        ch.basic_publish(exchange='response_exchange1',
                      routing_key='response',
                      properties=pika.BasicProperties(correlation_id = \
                                                          props.correlation_id),
                      body= json.dumps(retResponse))
-         ch.basic_ack(delivery_tag=method.delivery_tag)
+        ch.basic_ack(delivery_tag=method.delivery_tag)
     else:
         n = json.loads(body)
         if (n=="clear"):
