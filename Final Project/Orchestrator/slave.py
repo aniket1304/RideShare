@@ -73,9 +73,10 @@ if 'sqlite' in app.config['SQLALCHEMY_DATABASE_URI']:
 #table definitions for User, Ride and ridetake
 
 class User(db.Model):
+
 	username = db.Column(db.Text(), unique=True, primary_key=True)
 	password = db.Column(db.Text(), nullable=False)
-	#ride= db.relationship("Ride", back_populates="user")
+
 
 	def __repr__(self):
 		return '<User %r>' % self.username
@@ -137,21 +138,30 @@ def on_request(ch, method, props, body):
     #for read requests
     if method.routing_key == 'read':
  
+        
         try:
+
          with app.test_request_context():
             print(User.query.all())
             request = json.loads(body)
             print(request)
 
 
+
+
             try:
 
+            	#table_name.query.filter('where clause').all()
+            	#command formatting provided a condition ('where' clause)
                 me =("global us;us="+request["table"]+".query.filter"+"("+request["where"]+").all()")
             
             except:
             	
+            	#table_name.query.all()
+            	#command formatting without condition
                 me =("global us;us="+request["table"]+".query.all()")
 
+            #executing command
             exec(me)
 
             lis=[]
@@ -159,55 +169,85 @@ def on_request(ch, method, props, body):
             for i in us:
              global res
              res={}
-            #  print(REcolumns)
+
+             #creating response of required columns
              for j in request["columns"]:
+
                 if (j=="timestamp"):
+
                     print("intimestamp")
+                    
+                    #changing datatype from datetime to string to make it json compatible
                     exec("res[j]=str(i."+j+")")
+
                 else:
+
                     exec("res[j]=i."+j)
+
              lis+=[res]
+
             print(lis)
+
             retResponse = (lis)
+
         except Exception as e:
+
             print(e)
+
             print(User.query.all())
+
+            #if error occurs, send 500 as response
             retResponse=json.dumps(500)
+
+        #publishing to response queue
         ch.basic_publish(exchange='response_exchange1',
                      routing_key='response',
                      properties=pika.BasicProperties(correlation_id = \
                                                          props.correlation_id),
                      body= json.dumps(retResponse))
+
+        #acknowledging request
         ch.basic_ack(delivery_tag=method.delivery_tag)
+    
+    #consumed from syncQ
     else:
         n = json.loads(body)
         if (n=="clear"):
             print(User.query.all())
-            db.drop_all()
-            db.create_all()
-            # response="a"
+            db.drop_all() #drop all tables
+            db.create_all() #create fresh tables
+
+
         else:
     	    exec(n)	
-    	    db.session.add(us)
-    	    db.session.commit()
+    	    db.session.add(us) #add row to database
+    	    db.session.commit() #commit database
     	    response="a"
-	# channel.basic_qos(prefetch_count=1)
+
+#creating connection to rabbitmq
 try:
 
         connection = pika.BlockingConnection(
         pika.ConnectionParameters(host='rmq'))
+
 except:
+
         time.sleep(30)
+
 finally:
+
         connection = pika.BlockingConnection(
         pika.ConnectionParameters(host='rmq'))
+
 channel = connection.channel()
 
+#declaring exchange
 channel.exchange_declare(exchange='read_exchange1', exchange_type='direct')
 channel.exchange_declare(exchange='response_exchange1', exchange_type='direct')
 channel.exchange_declare(exchange = 'sync_exchange1', exchange_type = 'direct')
 channel.exchange_declare(exchange='write_exchange', exchange_type='direct')
 
+#declaring queue and binding it
 channel.queue_declare(queue='readQ', durable = True)
 channel.queue_bind(exchange = 'read_exchange1', queue = 'readQ', routing_key = 'read')
 
@@ -218,11 +258,16 @@ channel.queue_declare(queue='writeQ', durable=True)
 channel.queue_bind(exchange = 'write_exchange', queue = 'writeQ', routing_key = 'write')
 
 
+
 channel.basic_qos(prefetch_count=0)
+
 master = 0
+
 if master == 1:
 	#channel.basic_consume(queue= 'writeQ', on_message_callback=callback, auto_ack=True)
 	pass
+
+#consume from readQ and syncQ
 else:
 	channel.basic_consume(queue='readQ', on_message_callback=on_request)
 	channel.basic_consume(queue='syncQ', on_message_callback=on_request, auto_ack = True)
