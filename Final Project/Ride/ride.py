@@ -7,7 +7,7 @@ import requests
 
 
 ip='http://34.207.157.150/'  #IP of Orchestrator/DBaaS
-
+ipu="http://52.55.28.15/" #IP of Users
 
 count=0  #for counter
 
@@ -101,7 +101,7 @@ def create_ride():
 
 
 		#Requesting User to get all the users
-		q=requests.get('http://52.55.28.15/api/v1/users',json=data )
+		q=requests.get(ipu+'api/v1/users',json=data )
 		if(q.status_code!=204):#204=no user
 			
 			z=(q.json())
@@ -222,7 +222,7 @@ def join_rides(rideId):
 			return ('Missing Parameter',status.HTTP_400_BAD_REQUEST)
 
 		#getting users
-		q=requests.get('http://52.55.28.15/api/v1/users')	
+		q=requests.get(ipu+'api/v1/users')	
 
 
 		if(q.status_code!=204):#204=no users
